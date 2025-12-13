@@ -20,7 +20,10 @@
     "NAPI",
     "N-API",
     "compression",
-    "zstd",
+    "bzip2",
+    "bsdiff40",
+    "qbsdiff",
+    "delta-compression",
     "node-addon",
     "node-addon-api"
   ],
@@ -58,6 +61,7 @@
     "format:rs": "cargo fmt",
     "lint": "oxlint .",
     "test": "mocha --require ts-node/register test/index.ts",
+    "test:compatibility": "node test/compatibility-test.js",
     "version": "napi version",
     "bench": "node --import @oxc-node/core/register benchmark/benchmark.ts"
   },
@@ -67,6 +71,7 @@
     "@taplo/cli": "^0.7.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "^24.3.0",
+    "bsdiff-node": "^2.5.0",
     "chalk": "^5.4.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
@@ -74,7 +79,6 @@
     "npm-run-all2": "^8.0.4",
     "oxlint": "^1.8.0",
     "prettier": "^3.6.2",
-    "tinybench": "^5.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.1",
     "typescript": "^5.8.3"
