@@ -74,8 +74,6 @@ pnpm test
 pnpm run bench
 ```
 
-See the [Complete Guide](./docs/GUIDE.md) for detailed testing documentation and performance benchmarks.
-
 ## 🔧 Development Guide
 
 ### Environment Requirements
