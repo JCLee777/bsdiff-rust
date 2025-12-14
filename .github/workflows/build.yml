@@ -248,6 +248,7 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
           registry-url: 'https://registry.npmjs.org'
+          always-auth: true
 
       - name: Install dependencies
         run: pnpm install
@@ -268,6 +269,13 @@ jobs:
           ls -la artifacts/ || echo "No artifacts directory"
           echo "=== npm dirs ==="
           ls -R ./npm
+
+      - name: Verify npm authentication
+        run: |
+          echo "Verifying npm authentication..."
+          npm whoami --registry=https://registry.npmjs.org || echo "Authentication check failed"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
         run: |
