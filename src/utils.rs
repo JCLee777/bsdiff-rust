@@ -1,6 +1,5 @@
 use std::fs::File;
-use std::io::{Read, BufReader};
-use zstd::stream::Decoder as ZstdDecoder;
+use std::io::Read;
 
 /// 补丁文件信息
 #[derive(Debug, Clone)]
@@ -21,20 +20,17 @@ pub struct CompressionRatio {
 /// 验证补丁文件完整性
 pub fn verify_patch(old_file: &str, new_file: &str, patch_file: &str) -> Result<bool, Box<dyn std::error::Error>> {
     // 读取文件
-    let mut old_data = Vec::new();
-    let mut reader = BufReader::new(File::open(old_file)?);
-    reader.read_to_end(&mut old_data)?;
+    let new_data = std::fs::read(new_file)?;
     
-    let mut new_data = Vec::new();
-    let mut reader = BufReader::new(File::open(new_file)?);
-    reader.read_to_end(&mut new_data)?;
+    // 创建临时文件来应用补丁
+    let temp_file = tempfile::NamedTempFile::new()?;
+    let temp_path = temp_file.path().to_str().ok_or("Invalid temp path")?;
     
-    // 应用补丁到临时数据
-    let patch_file = File::open(patch_file)?;
-    let mut reader = ZstdDecoder::new(patch_file)?;
-    let mut patched_data = Vec::new();
+    // 使用 BsdiffRust::patch 应用补丁
+    crate::bsdiff_rust::BsdiffRust::patch(old_file, temp_path, patch_file)?;
     
-    bsdiff::patch(&old_data, &mut reader, &mut patched_data)?;
+    // 读取生成的数据
+    let patched_data = std::fs::read(temp_path)?;
     
     // 比较结果
     Ok(patched_data == new_data)
@@ -43,9 +39,16 @@ pub fn verify_patch(old_file: &str, new_file: &str, patch_file: &str) -> Result<
 /// 获取补丁文件信息
 pub fn get_patch_info(patch_file: &str) -> Result<PatchInfo, Box<dyn std::error::Error>> {
     let metadata = std::fs::metadata(patch_file)?;
+    
+    // 检查是否是 BSDIFF40 格式
+    let mut file = File::open(patch_file)?;
+    let mut header = [0u8; 8];
+    file.read_exact(&mut header).ok();
+    let is_bsdiff40 = &header == b"BSDIFF40";
+    
     Ok(PatchInfo {
         size: metadata.len(),
-        compressed: true, // 我们总是使用 zstd 压缩
+        compressed: is_bsdiff40, // BSDIFF40 格式使用 bzip2 压缩
     })
 }
 
@@ -89,4 +92,3 @@ pub fn get_compression_ratio(old_file: &str, new_file: &str, patch_file: &str) -
         ratio,
     })
 }
-

@@ -10,10 +10,8 @@ version     = "0.1.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-bsdiff      = "0.2.1"
-zstd        = "0.13"      # 高性能压缩算法
-memmap2     = "0.9"       # 内存映射支持
-rayon       = "1.8"       # 并行处理支持
+qbsdiff     = "1.4.4"     # 快速、标准 BSDIFF40 格式生成器（内置 rayon 并行处理）
+tempfile    = "3.8"       # 临时文件支持
 napi        = "3.0.0"
 napi-derive = "3.0.0"
 
