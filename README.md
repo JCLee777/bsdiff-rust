@@ -98,22 +98,6 @@ pnpm build:debug
 pnpm build:arm64
 ```
 
-### Development Workflow
-
-```bash
-# Code formatting
-pnpm format
-
-# Code linting
-pnpm lint
-
-# Run tests
-pnpm test
-
-# Performance testing
-pnpm bench
-```
-
 ### Project Structure
 
 ```
