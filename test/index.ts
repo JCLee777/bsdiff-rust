@@ -8,12 +8,17 @@ import {
   patchSync,
   verifyPatch,
   verifyPatchSync,
+  diffWithStatsSync,
+  patchWithStatsSync,
+  diffWithOptionsSync,
   getPatchInfoSync,
   getFileSizeSync,
   checkFileAccessSync,
   getCompressionRatioSync,
   type PatchInfoJs,
   type CompressionRatioJs,
+  type PerformanceStatsJs,
+  type DiffOptionsJs,
 } from '../index'
 
 describe('bsdiff (rust)', function () {
@@ -183,6 +188,99 @@ describe('bsdiff (rust)', function () {
       console.log(`   - 旧文件: ${(ratio.oldSize / 1024 / 1024).toFixed(2)} MB`)
       console.log(`   - 新文件: ${(ratio.newSize / 1024 / 1024).toFixed(2)} MB`)
       console.log(`   - 补丁文件: ${(ratio.patchSize / 1024).toFixed(2)} KB`)
+    })
+  })
+
+  describe('Diff/Patch with stats', () => {
+    it('should return valid performance statistics from diffWithStatsSync', function () {
+      this.timeout(10000)
+
+      const stats: PerformanceStatsJs = diffWithStatsSync(oldFile, newFile, patchFile)
+
+      // Verify all fields exist and have correct types
+      assert.strictEqual(typeof stats.elapsedMs, 'number', 'Expected elapsedMs to be a number')
+      assert.strictEqual(typeof stats.oldSize, 'number', 'Expected oldSize to be a number')
+      assert.strictEqual(typeof stats.newSize, 'number', 'Expected newSize to be a number')
+      assert.strictEqual(typeof stats.patchSize, 'number', 'Expected patchSize to be a number')
+      assert.strictEqual(typeof stats.compressionRatio, 'number', 'Expected compressionRatio to be a number')
+
+      // Verify values are reasonable
+      assert.ok(stats.elapsedMs >= 0, 'Expected elapsedMs >= 0')
+      assert.ok(stats.oldSize > 0, 'Expected oldSize > 0')
+      assert.ok(stats.newSize > 0, 'Expected newSize > 0')
+      assert.ok(stats.patchSize > 0, 'Expected patchSize > 0')
+      assert.ok(stats.compressionRatio > 0, 'Expected compressionRatio > 0')
+      assert.ok(stats.compressionRatio < 100, 'Expected compressionRatio < 100')
+
+      // Verify sizes match actual file sizes
+      assert.strictEqual(stats.oldSize, fs.statSync(oldFile).size, 'oldSize should match actual file size')
+      assert.strictEqual(stats.newSize, fs.statSync(newFile).size, 'newSize should match actual file size')
+
+      console.log(`diffWithStatsSync: elapsed=${stats.elapsedMs}ms, ratio=${stats.compressionRatio.toFixed(2)}%`)
+    })
+
+    it('should return valid performance statistics from patchWithStatsSync', function () {
+      this.timeout(10000)
+
+      // Generate patch first
+      diffSync(oldFile, newFile, patchFile)
+
+      const stats: PerformanceStatsJs = patchWithStatsSync(oldFile, generatedFile, patchFile)
+
+      assert.strictEqual(typeof stats.elapsedMs, 'number', 'Expected elapsedMs to be a number')
+      assert.ok(stats.elapsedMs >= 0, 'Expected elapsedMs >= 0')
+      assert.ok(stats.oldSize > 0, 'Expected oldSize > 0')
+      assert.ok(stats.newSize > 0, 'Expected newSize > 0')
+      assert.ok(stats.patchSize > 0, 'Expected patchSize > 0')
+
+      // Verify patched file is correct
+      const originalContent = fs.readFileSync(newFile)
+      const generatedContent = fs.readFileSync(generatedFile)
+      assert.ok(originalContent.equals(generatedContent), 'Patched file should match original')
+
+      console.log(`patchWithStatsSync: elapsed=${stats.elapsedMs}ms`)
+    })
+  })
+
+  describe('Diff with options', () => {
+    it('should generate valid patch with custom options via diffWithOptionsSync', function () {
+      this.timeout(10000)
+
+      const options: DiffOptionsJs = {
+        compressionLevel: 9,
+        enableParallel: false,
+      }
+
+      // Should not throw
+      diffWithOptionsSync(oldFile, newFile, patchFile, options)
+
+      // Verify patch file was created and is valid
+      assert.ok(fs.existsSync(patchFile), 'Patch file should exist')
+      assert.ok(fs.statSync(patchFile).size > 0, 'Patch file should not be empty')
+
+      // Apply patch and verify correctness
+      patchSync(oldFile, generatedFile, patchFile)
+      const originalContent = fs.readFileSync(newFile)
+      const generatedContent = fs.readFileSync(generatedFile)
+      assert.ok(originalContent.equals(generatedContent), 'Patched file should match original')
+
+      console.log(`diffWithOptionsSync (level=9, parallel=false): patch=${(fs.statSync(patchFile).size / 1024).toFixed(2)} KB`)
+    })
+  })
+
+  describe('Patch verification - failure path', () => {
+    it('should return false when patch does not match the target file', function () {
+      this.timeout(10000)
+
+      // Generate a valid patch from oldFile → newFile
+      diffSync(oldFile, newFile, patchFile)
+
+      // Verify against a WRONG target: oldFile instead of newFile
+      // This should return false since old ≠ new
+      const isValid = verifyPatchSync(oldFile, oldFile, patchFile)
+      assert.strictEqual(isValid, false, 'verifyPatch should return false when target file does not match')
+
+      console.log('✅ Patch verification correctly returns false for mismatched files')
     })
   })
 

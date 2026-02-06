@@ -6,162 +6,32 @@ mod utils;
 use bsdiff_rust::{BsdiffRust, DiffOptions};
 use utils::{verify_patch as verify_patch_util, get_patch_info, get_file_size, check_file_access, get_compression_ratio};
 
-fn call_bsdiff(
-  old_str: &str,
-  new_str: &str,
-  patch: &str,
-) -> Result<()> {
-  BsdiffRust::diff(old_str, new_str, patch)
-    .map_err(|e| Error::from_reason(e.to_string()))
+// ============================================================
+// Common type conversions and helper functions
+// ============================================================
+
+/// Convert a `Box<dyn Error>` into a `napi::Error`.
+fn to_napi_err(e: Box<dyn std::error::Error>) -> Error {
+  Error::from_reason(e.to_string())
 }
 
-fn call_bspatch(
-  old_str: &str,
-  new_str: &str,
-  patch: &str,
-) -> Result<()> {
-  BsdiffRust::patch(old_str, new_str, patch)
-    .map_err(|e| Error::from_reason(e.to_string()))
+/// Convert `Result<T, Box<dyn Error>>` into `napi::Result<T>`.
+fn into_napi<T>(result: std::result::Result<T, Box<dyn std::error::Error>>) -> Result<T> {
+  result.map_err(to_napi_err)
 }
 
-#[napi]
-pub fn diff_sync(old_str: String, new_str: String, patch: String) -> Result<()> {
-  call_bsdiff(&old_str, &new_str, &patch)
-}
+// ============================================================
+// JS ↔ Rust struct definitions and type conversions
+// ============================================================
 
-#[napi]
-pub fn patch_sync(old_str: String, new_str: String, patch: String) -> Result<()> {
-  call_bspatch(&old_str, &new_str, &patch)
-}
-
-/// 生成补丁文件并返回性能统计（同步）
-#[napi]
-pub fn diff_with_stats_sync(old_str: String, new_str: String, patch: String) -> Result<PerformanceStatsJs> {
-  let stats = BsdiffRust::diff_with_stats(&old_str, &new_str, &patch)
-    .map_err(|e| Error::from_reason(e.to_string()))?;
-  
-  Ok(PerformanceStatsJs {
-    elapsed_ms: stats.elapsed_ms as f64,
-    old_size: stats.old_size as f64,
-    new_size: stats.new_size as f64,
-    patch_size: stats.patch_size as f64,
-    compression_ratio: stats.compression_ratio,
-  })
-}
-
-/// 应用补丁文件并返回性能统计（同步）
-#[napi]
-pub fn patch_with_stats_sync(old_str: String, new_str: String, patch: String) -> Result<PerformanceStatsJs> {
-  let stats = BsdiffRust::patch_with_stats(&old_str, &new_str, &patch)
-    .map_err(|e| Error::from_reason(e.to_string()))?;
-  
-  Ok(PerformanceStatsJs {
-    elapsed_ms: stats.elapsed_ms as f64,
-    old_size: stats.old_size as f64,
-    new_size: stats.new_size as f64,
-    patch_size: stats.patch_size as f64,
-    compression_ratio: stats.compression_ratio,
-  })
-}
-
-/// 生成补丁文件，支持自定义选项（同步）
-#[napi]
-pub fn diff_with_options_sync(
-  old_str: String, 
-  new_str: String, 
-  patch: String,
-  options: DiffOptionsJs
-) -> Result<()> {
-  let opts = DiffOptions {
-    compression_level: options.compression_level.unwrap_or(6),
-    enable_parallel: options.enable_parallel.unwrap_or(true),
-  };
-  
-  BsdiffRust::diff_with_options(&old_str, &new_str, &patch, &opts)
-    .map_err(|e| Error::from_reason(e.to_string()))
-}
-
-/// 生成补丁文件，支持自定义选项并返回性能统计（同步）
-#[napi]
-pub fn diff_with_options_and_stats_sync(
-  old_str: String, 
-  new_str: String, 
-  patch: String,
-  options: DiffOptionsJs
-) -> Result<PerformanceStatsJs> {
-  let opts = DiffOptions {
-    compression_level: options.compression_level.unwrap_or(6),
-    enable_parallel: options.enable_parallel.unwrap_or(true),
-  };
-  
-  let stats = BsdiffRust::diff_with_options_and_stats(&old_str, &new_str, &patch, &opts)
-    .map_err(|e| Error::from_reason(e.to_string()))?;
-  
-  Ok(PerformanceStatsJs {
-    elapsed_ms: stats.elapsed_ms as f64,
-    old_size: stats.old_size as f64,
-    new_size: stats.new_size as f64,
-    patch_size: stats.patch_size as f64,
-    compression_ratio: stats.compression_ratio,
-  })
-}
-
-/// 验证补丁文件完整性
-#[napi]
-pub fn verify_patch_sync(old_str: String, new_str: String, patch: String) -> Result<bool> {
-  verify_patch_util(&old_str, &new_str, &patch)
-    .map_err(|e| Error::from_reason(e.to_string()))
-}
-
-/// 获取补丁文件信息
-#[napi]
-pub fn get_patch_info_sync(patch: String) -> Result<PatchInfoJs> {
-  let info = get_patch_info(&patch)
-    .map_err(|e| Error::from_reason(e.to_string()))?;
-  
-  Ok(PatchInfoJs {
-    size: info.size as f64,
-    compressed: info.compressed,
-  })
-}
-
-/// 获取文件大小
-#[napi]
-pub fn get_file_size_sync(file_path: String) -> Result<f64> {
-  get_file_size(&file_path)
-    .map(|size| size as f64)
-    .map_err(|e| Error::from_reason(e.to_string()))
-}
-
-/// 检查文件访问权限
-#[napi]
-pub fn check_file_access_sync(file_path: String) -> Result<()> {
-  check_file_access(&file_path)
-    .map_err(|e| Error::from_reason(e.to_string()))
-}
-
-/// 获取压缩比信息
-#[napi]
-pub fn get_compression_ratio_sync(old_str: String, new_str: String, patch: String) -> Result<CompressionRatioJs> {
-  let ratio = get_compression_ratio(&old_str, &new_str, &patch)
-    .map_err(|e| Error::from_reason(e.to_string()))?;
-  
-  Ok(CompressionRatioJs {
-    old_size: ratio.old_size as f64,
-    new_size: ratio.new_size as f64,
-    patch_size: ratio.patch_size as f64,
-    ratio: ratio.ratio,
-  })
-}
-
-/// JavaScript 补丁信息结构
+/// Patch file information exposed to JavaScript.
 #[napi(object)]
 pub struct PatchInfoJs {
   pub size: f64,
   pub compressed: bool,
 }
 
-/// JavaScript 压缩比信息结构
+/// Compression ratio information exposed to JavaScript.
 #[napi(object)]
 pub struct CompressionRatioJs {
   pub old_size: f64,
@@ -170,31 +40,145 @@ pub struct CompressionRatioJs {
   pub ratio: f64,
 }
 
-/// JavaScript 性能统计结构
+/// Performance statistics exposed to JavaScript.
 #[napi(object)]
 pub struct PerformanceStatsJs {
-  /// 操作耗时（毫秒）
+  /// Elapsed time in milliseconds.
   pub elapsed_ms: f64,
-  /// 旧文件大小（字节）
+  /// Old file size in bytes.
   pub old_size: f64,
-  /// 新文件大小（字节）
+  /// New file size in bytes.
   pub new_size: f64,
-  /// 补丁大小（字节）
+  /// Patch file size in bytes.
   pub patch_size: f64,
-  /// 压缩比（百分比）
+  /// Compression ratio as a percentage.
   pub compression_ratio: f64,
 }
 
-/// JavaScript Diff 配置选项
+impl From<bsdiff_rust::PerformanceStats> for PerformanceStatsJs {
+  fn from(s: bsdiff_rust::PerformanceStats) -> Self {
+    Self {
+      elapsed_ms: s.elapsed_ms as f64,
+      old_size: s.old_size as f64,
+      new_size: s.new_size as f64,
+      patch_size: s.patch_size as f64,
+      compression_ratio: s.compression_ratio,
+    }
+  }
+}
+
+/// Diff configuration options exposed to JavaScript.
 #[napi(object)]
 pub struct DiffOptionsJs {
-  /// 压缩级别 (0-9, 默认 6)
+  /// Compression level (0-9, default 6).
   pub compression_level: Option<u32>,
-  /// 是否启用并行处理（默认 true）
+  /// Enable parallel processing (default true).
   pub enable_parallel: Option<bool>,
 }
 
-// 简化的异步版本，暂时不包含进度回调
+impl From<DiffOptionsJs> for DiffOptions {
+  fn from(js: DiffOptionsJs) -> Self {
+    Self {
+      compression_level: js.compression_level.unwrap_or(6),
+      enable_parallel: js.enable_parallel.unwrap_or(true),
+    }
+  }
+}
+
+// ============================================================
+// Synchronous API
+// ============================================================
+
+#[napi]
+pub fn diff_sync(old_str: String, new_str: String, patch: String) -> Result<()> {
+  into_napi(BsdiffRust::diff(&old_str, &new_str, &patch))
+}
+
+#[napi]
+pub fn patch_sync(old_str: String, new_str: String, patch: String) -> Result<()> {
+  into_napi(BsdiffRust::patch(&old_str, &new_str, &patch))
+}
+
+/// Generate a patch file and return performance statistics (sync).
+#[napi]
+pub fn diff_with_stats_sync(old_str: String, new_str: String, patch: String) -> Result<PerformanceStatsJs> {
+  into_napi(BsdiffRust::diff_with_stats(&old_str, &new_str, &patch)).map(Into::into)
+}
+
+/// Apply a patch file and return performance statistics (sync).
+#[napi]
+pub fn patch_with_stats_sync(old_str: String, new_str: String, patch: String) -> Result<PerformanceStatsJs> {
+  into_napi(BsdiffRust::patch_with_stats(&old_str, &new_str, &patch)).map(Into::into)
+}
+
+/// Generate a patch file with custom options (sync).
+#[napi]
+pub fn diff_with_options_sync(
+  old_str: String,
+  new_str: String,
+  patch: String,
+  options: DiffOptionsJs,
+) -> Result<()> {
+  let opts: DiffOptions = options.into();
+  into_napi(BsdiffRust::diff_with_options(&old_str, &new_str, &patch, &opts))
+}
+
+/// Generate a patch file with custom options and return performance statistics (sync).
+#[napi]
+pub fn diff_with_options_and_stats_sync(
+  old_str: String,
+  new_str: String,
+  patch: String,
+  options: DiffOptionsJs,
+) -> Result<PerformanceStatsJs> {
+  let opts: DiffOptions = options.into();
+  into_napi(BsdiffRust::diff_with_options_and_stats(&old_str, &new_str, &patch, &opts)).map(Into::into)
+}
+
+/// Verify patch file integrity.
+#[napi]
+pub fn verify_patch_sync(old_str: String, new_str: String, patch: String) -> Result<bool> {
+  into_napi(verify_patch_util(&old_str, &new_str, &patch))
+}
+
+/// Get patch file information.
+#[napi]
+pub fn get_patch_info_sync(patch: String) -> Result<PatchInfoJs> {
+  let info = into_napi(get_patch_info(&patch))?;
+  Ok(PatchInfoJs {
+    size: info.size as f64,
+    compressed: info.compressed,
+  })
+}
+
+/// Get file size.
+#[napi]
+pub fn get_file_size_sync(file_path: String) -> Result<f64> {
+  into_napi(get_file_size(&file_path)).map(|s| s as f64)
+}
+
+/// Check file access permissions.
+#[napi]
+pub fn check_file_access_sync(file_path: String) -> Result<()> {
+  into_napi(check_file_access(&file_path))
+}
+
+/// Get compression ratio information.
+#[napi]
+pub fn get_compression_ratio_sync(old_str: String, new_str: String, patch: String) -> Result<CompressionRatioJs> {
+  let ratio = into_napi(get_compression_ratio(&old_str, &new_str, &patch))?;
+  Ok(CompressionRatioJs {
+    old_size: ratio.old_size as f64,
+    new_size: ratio.new_size as f64,
+    patch_size: ratio.patch_size as f64,
+    ratio: ratio.ratio,
+  })
+}
+
+// ============================================================
+// Async Task definitions
+// ============================================================
+
 pub struct DiffTask {
   old_str: String,
   new_str: String,
@@ -207,7 +191,7 @@ impl Task for DiffTask {
   type JsValue = ();
 
   fn compute(&mut self) -> Result<Self::Output> {
-    call_bsdiff(&self.old_str, &self.new_str, &self.patch)
+    into_napi(BsdiffRust::diff(&self.old_str, &self.new_str, &self.patch))
   }
 
   fn resolve(&mut self, _env: Env, _output: Self::Output) -> Result<Self::JsValue> {
@@ -227,7 +211,7 @@ impl Task for PatchTask {
   type JsValue = ();
 
   fn compute(&mut self) -> Result<Self::Output> {
-    call_bspatch(&self.old_str, &self.new_str, &self.patch)
+    into_napi(BsdiffRust::patch(&self.old_str, &self.new_str, &self.patch))
   }
 
   fn resolve(&mut self, _env: Env, _output: Self::Output) -> Result<Self::JsValue> {
@@ -247,8 +231,7 @@ impl Task for VerifyPatchTask {
   type JsValue = bool;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    verify_patch_util(&self.old_str, &self.new_str, &self.patch)
-      .map_err(|e| Error::from_reason(e.to_string()))
+    into_napi(verify_patch_util(&self.old_str, &self.new_str, &self.patch))
   }
 
   fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -256,7 +239,6 @@ impl Task for VerifyPatchTask {
   }
 }
 
-// 带性能统计的异步任务
 pub struct DiffWithStatsTask {
   old_str: String,
   new_str: String,
@@ -269,18 +251,11 @@ impl Task for DiffWithStatsTask {
   type JsValue = PerformanceStatsJs;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    BsdiffRust::diff_with_stats(&self.old_str, &self.new_str, &self.patch)
-      .map_err(|e| Error::from_reason(e.to_string()))
+    into_napi(BsdiffRust::diff_with_stats(&self.old_str, &self.new_str, &self.patch))
   }
 
   fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
-    Ok(PerformanceStatsJs {
-      elapsed_ms: output.elapsed_ms as f64,
-      old_size: output.old_size as f64,
-      new_size: output.new_size as f64,
-      patch_size: output.patch_size as f64,
-      compression_ratio: output.compression_ratio,
-    })
+    Ok(output.into())
   }
 }
 
@@ -296,22 +271,14 @@ impl Task for PatchWithStatsTask {
   type JsValue = PerformanceStatsJs;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    BsdiffRust::patch_with_stats(&self.old_str, &self.new_str, &self.patch)
-      .map_err(|e| Error::from_reason(e.to_string()))
+    into_napi(BsdiffRust::patch_with_stats(&self.old_str, &self.new_str, &self.patch))
   }
 
   fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
-    Ok(PerformanceStatsJs {
-      elapsed_ms: output.elapsed_ms as f64,
-      old_size: output.old_size as f64,
-      new_size: output.new_size as f64,
-      patch_size: output.patch_size as f64,
-      compression_ratio: output.compression_ratio,
-    })
+    Ok(output.into())
   }
 }
 
-// 带配置选项的异步任务
 pub struct DiffWithOptionsTask {
   old_str: String,
   new_str: String,
@@ -325,14 +292,17 @@ impl Task for DiffWithOptionsTask {
   type JsValue = ();
 
   fn compute(&mut self) -> Result<Self::Output> {
-    BsdiffRust::diff_with_options(&self.old_str, &self.new_str, &self.patch, &self.options)
-      .map_err(|e| Error::from_reason(e.to_string()))
+    into_napi(BsdiffRust::diff_with_options(&self.old_str, &self.new_str, &self.patch, &self.options))
   }
 
   fn resolve(&mut self, _env: Env, _output: Self::Output) -> Result<Self::JsValue> {
     Ok(())
   }
 }
+
+// ============================================================
+// Async API exports
+// ============================================================
 
 #[napi]
 pub fn diff(
@@ -361,7 +331,7 @@ pub fn verify_patch(
   Ok(AsyncTask::new(VerifyPatchTask { old_str, new_str, patch }))
 }
 
-/// 生成补丁文件并返回性能统计（异步）
+/// Generate a patch file and return performance statistics (async).
 #[napi]
 pub fn diff_with_stats(
   old_str: String,
@@ -371,7 +341,7 @@ pub fn diff_with_stats(
   Ok(AsyncTask::new(DiffWithStatsTask { old_str, new_str, patch }))
 }
 
-/// 应用补丁文件并返回性能统计（异步）
+/// Apply a patch file and return performance statistics (async).
 #[napi]
 pub fn patch_with_stats(
   old_str: String,
@@ -381,7 +351,7 @@ pub fn patch_with_stats(
   Ok(AsyncTask::new(PatchWithStatsTask { old_str, new_str, patch }))
 }
 
-/// 生成补丁文件，支持自定义选项（异步）
+/// Generate a patch file with custom options (async).
 #[napi]
 pub fn diff_with_options(
   old_str: String,
@@ -389,13 +359,10 @@ pub fn diff_with_options(
   patch: String,
   options: DiffOptionsJs,
 ) -> Result<AsyncTask<DiffWithOptionsTask>> {
-  let opts = DiffOptions {
-    compression_level: options.compression_level.unwrap_or(6),
-    enable_parallel: options.enable_parallel.unwrap_or(true),
-  };
-  Ok(AsyncTask::new(DiffWithOptionsTask { 
-    old_str, 
-    new_str, 
+  let opts: DiffOptions = options.into();
+  Ok(AsyncTask::new(DiffWithOptionsTask {
+    old_str,
+    new_str,
     patch,
     options: opts,
   }))

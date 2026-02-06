@@ -4,27 +4,27 @@ use std::time::Instant;
 use qbsdiff::{Bsdiff, Bspatch, ParallelScheme};
 use qbsdiff::bsdiff::MAX_LENGTH;
 
-/// 性能统计信息
+/// Performance statistics.
 #[derive(Debug, Clone)]
 pub struct PerformanceStats {
-    /// 操作耗时（毫秒）
+    /// Elapsed time in milliseconds.
     pub elapsed_ms: u64,
-    /// 旧文件大小（字节）
+    /// Old file size in bytes.
     pub old_size: u64,
-    /// 新文件大小（字节）
+    /// New file size in bytes.
     pub new_size: u64,
-    /// 补丁大小（字节）
+    /// Patch file size in bytes.
     pub patch_size: u64,
-    /// 压缩比（百分比）
+    /// Compression ratio as a percentage.
     pub compression_ratio: f64,
 }
 
-/// Diff 配置选项
+/// Diff configuration options.
 #[derive(Debug, Clone)]
 pub struct DiffOptions {
-    /// 压缩级别 (0-9)
+    /// Compression level (0-9).
     pub compression_level: u32,
-    /// 是否启用并行处理
+    /// Whether to enable parallel processing.
     pub enable_parallel: bool,
 }
 
@@ -40,19 +40,19 @@ impl Default for DiffOptions {
 pub struct BsdiffRust;
 
 impl BsdiffRust {
-    /// 生成标准 BSDIFF40 格式的补丁文件
+    /// Generate a standard BSDIFF40 format patch file.
     pub fn diff(old_file: &str, new_file: &str, patch_file: &str) -> Result<(), Box<dyn std::error::Error>> {
         Self::diff_with_options(old_file, new_file, patch_file, &DiffOptions::default())
     }
 
-    /// 生成补丁文件，支持自定义选项
+    /// Generate a patch file with custom options.
     pub fn diff_with_options(
         old_file: &str, 
         new_file: &str, 
         patch_file: &str,
         options: &DiffOptions
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // 验证输入文件
+        // Validate input files
         if !Path::new(old_file).exists() {
             return Err(format!("Old file not found: {}", old_file).into());
         }
@@ -63,7 +63,7 @@ impl BsdiffRust {
         let old_data = std::fs::read(old_file)?;
         let new_data = std::fs::read(new_file)?;
 
-        // 检查文件大小限制
+        // Check file size limit
         if old_data.len() > MAX_LENGTH {
             return Err(format!(
                 "Old file too large: {} bytes (max: {} bytes)", 
@@ -89,7 +89,7 @@ impl BsdiffRust {
         Ok(())
     }
 
-    /// 生成补丁文件并返回性能统计
+    /// Generate a patch file and return performance statistics.
     pub fn diff_with_stats(
         old_file: &str, 
         new_file: &str, 
@@ -98,7 +98,7 @@ impl BsdiffRust {
         Self::diff_with_options_and_stats(old_file, new_file, patch_file, &DiffOptions::default())
     }
 
-    /// 生成补丁文件，支持自定义选项并返回性能统计
+    /// Generate a patch file with custom options and return performance statistics.
     pub fn diff_with_options_and_stats(
         old_file: &str, 
         new_file: &str, 
@@ -107,12 +107,12 @@ impl BsdiffRust {
     ) -> Result<PerformanceStats, Box<dyn std::error::Error>> {
         let start = Instant::now();
 
-        // 执行 diff
+        // Perform diff
         Self::diff_with_options(old_file, new_file, patch_file, options)?;
 
         let elapsed = start.elapsed();
 
-        // 收集统计信息
+        // Collect statistics
         let old_size = std::fs::metadata(old_file)?.len();
         let new_size = std::fs::metadata(new_file)?.len();
         let patch_size = std::fs::metadata(patch_file)?.len();
@@ -132,9 +132,9 @@ impl BsdiffRust {
         })
     }
 
-    /// 应用标准 BSDIFF40 格式的补丁文件
+    /// Apply a standard BSDIFF40 format patch file.
     pub fn patch(old_file: &str, new_file: &str, patch_file: &str) -> Result<(), Box<dyn std::error::Error>> {
-        // 验证输入文件
+        // Validate input files
         if !Path::new(old_file).exists() {
             return Err(format!("Old file not found: {}", old_file).into());
         }
@@ -142,23 +142,23 @@ impl BsdiffRust {
             return Err(format!("Patch file not found: {}", patch_file).into());
         }
 
-        // 读取文件
+        // Read files
         let old_data = std::fs::read(old_file)?;
         let patch_data = std::fs::read(patch_file)?;
 
-        // 应用补丁，使用内存预分配优化
+        // Apply patch with pre-allocated buffer for better performance
         let patcher = Bspatch::new(&patch_data)?;
-        // 预分配目标文件大小，减少内存重分配，提升性能
+        // Pre-allocate target size to reduce memory reallocations
         let mut new_data = Vec::with_capacity(patcher.hint_target_size() as usize);
         patcher.apply(&old_data, Cursor::new(&mut new_data))?;
 
-        // 写入新文件
+        // Write output file
         std::fs::write(new_file, new_data)?;
 
         Ok(())
     }
 
-    /// 应用补丁文件并返回性能统计
+    /// Apply a patch file and return performance statistics.
     pub fn patch_with_stats(
         old_file: &str, 
         new_file: &str, 
@@ -166,12 +166,12 @@ impl BsdiffRust {
     ) -> Result<PerformanceStats, Box<dyn std::error::Error>> {
         let start = Instant::now();
 
-        // 执行 patch
+        // Perform patch
         Self::patch(old_file, new_file, patch_file)?;
 
         let elapsed = start.elapsed();
 
-        // 收集统计信息
+        // Collect statistics
         let old_size = std::fs::metadata(old_file)?.len();
         let new_size = std::fs::metadata(new_file)?.len();
         let patch_size = std::fs::metadata(patch_file)?.len();
@@ -210,18 +210,18 @@ mod tests {
         fs::write(&old_file, old_content).unwrap();
         fs::write(&new_file, new_content).unwrap();
         
-        // 生成 BSDIFF40 格式的补丁
+        // Generate BSDIFF40 format patch
         BsdiffRust::diff(
             old_file.path().to_str().unwrap(),
             new_file.path().to_str().unwrap(),
             patch_file.path().to_str().unwrap(),
         ).unwrap();
         
-        // 验证补丁文件头部
+        // Verify patch file header
         let patch_data = fs::read(patch_file.path()).unwrap();
         assert_eq!(&patch_data[0..8], b"BSDIFF40", "Patch should have BSDIFF40 header");
         
-        // 应用补丁
+        // Apply patch
         let generated_file = NamedTempFile::new().unwrap();
         BsdiffRust::patch(
             old_file.path().to_str().unwrap(),
@@ -245,14 +245,15 @@ mod tests {
         fs::write(&old_file, old_content).unwrap();
         fs::write(&new_file, new_content).unwrap();
         
-        // 生成补丁并获取统计
+        // Generate patch and collect statistics
         let stats = BsdiffRust::diff_with_stats(
             old_file.path().to_str().unwrap(),
             new_file.path().to_str().unwrap(),
             patch_file.path().to_str().unwrap(),
         ).unwrap();
         
-        assert!(stats.elapsed_ms >= 0);
+        // elapsed_ms is u64, always >= 0; just verify the field is accessible
+        let _ = stats.elapsed_ms;
         assert_eq!(stats.old_size, old_content.len() as u64);
         assert_eq!(stats.new_size, new_content.len() as u64);
         assert!(stats.patch_size > 0);
@@ -283,7 +284,7 @@ mod tests {
             &options,
         ).unwrap();
         
-        // 验证补丁可以正确应用
+        // Verify patch can be applied correctly
         let generated_file = NamedTempFile::new().unwrap();
         BsdiffRust::patch(
             old_file.path().to_str().unwrap(),
@@ -316,5 +317,96 @@ mod tests {
         );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Patch file not found"));
+    }
+
+    #[test]
+    fn test_identical_files() {
+        let content = b"Identical content for both files";
+
+        let old_file = NamedTempFile::new().unwrap();
+        let new_file = NamedTempFile::new().unwrap();
+        let patch_file = NamedTempFile::new().unwrap();
+
+        fs::write(&old_file, content).unwrap();
+        fs::write(&new_file, content).unwrap();
+
+        // Diff two identical files should succeed
+        BsdiffRust::diff(
+            old_file.path().to_str().unwrap(),
+            new_file.path().to_str().unwrap(),
+            patch_file.path().to_str().unwrap(),
+        ).unwrap();
+
+        // Patch should restore the exact same content
+        let generated_file = NamedTempFile::new().unwrap();
+        BsdiffRust::patch(
+            old_file.path().to_str().unwrap(),
+            generated_file.path().to_str().unwrap(),
+            patch_file.path().to_str().unwrap(),
+        ).unwrap();
+
+        let generated_content = fs::read(generated_file.path()).unwrap();
+        assert_eq!(generated_content, content, "Patched content should match original for identical files");
+
+        // Patch for identical files should exist and have a valid BSDIFF40 header
+        let patch_data = fs::read(patch_file.path()).unwrap();
+        assert!(patch_data.len() >= 8, "Patch file should contain at least the BSDIFF40 header");
+        assert_eq!(&patch_data[0..8], b"BSDIFF40", "Patch should have BSDIFF40 header");
+    }
+
+    #[test]
+    fn test_empty_files() {
+        let old_file = NamedTempFile::new().unwrap();
+        let new_file = NamedTempFile::new().unwrap();
+        let patch_file = NamedTempFile::new().unwrap();
+
+        fs::write(&old_file, b"").unwrap();
+        fs::write(&new_file, b"").unwrap();
+
+        // Diff two empty files should succeed
+        BsdiffRust::diff(
+            old_file.path().to_str().unwrap(),
+            new_file.path().to_str().unwrap(),
+            patch_file.path().to_str().unwrap(),
+        ).unwrap();
+
+        // Patch should produce an empty file
+        let generated_file = NamedTempFile::new().unwrap();
+        BsdiffRust::patch(
+            old_file.path().to_str().unwrap(),
+            generated_file.path().to_str().unwrap(),
+            patch_file.path().to_str().unwrap(),
+        ).unwrap();
+
+        let generated_content = fs::read(generated_file.path()).unwrap();
+        assert!(generated_content.is_empty(), "Patched empty files should produce empty output");
+
+        // Stats should handle zero-size files without panicking
+        let stats = BsdiffRust::diff_with_stats(
+            old_file.path().to_str().unwrap(),
+            new_file.path().to_str().unwrap(),
+            patch_file.path().to_str().unwrap(),
+        ).unwrap();
+        assert_eq!(stats.old_size, 0);
+        assert_eq!(stats.new_size, 0);
+        assert_eq!(stats.compression_ratio, 0.0, "Compression ratio should be 0 when both files are empty");
+    }
+
+    #[test]
+    fn test_corrupted_patch() {
+        let old_file = NamedTempFile::new().unwrap();
+        let patch_file = NamedTempFile::new().unwrap();
+        let output_file = NamedTempFile::new().unwrap();
+
+        fs::write(&old_file, b"some original content").unwrap();
+        fs::write(&patch_file, b"this is not a valid bsdiff patch").unwrap();
+
+        // Applying a corrupted patch should return an error, not panic
+        let result = BsdiffRust::patch(
+            old_file.path().to_str().unwrap(),
+            output_file.path().to_str().unwrap(),
+            patch_file.path().to_str().unwrap(),
+        );
+        assert!(result.is_err(), "Corrupted patch should produce an error");
     }
 }

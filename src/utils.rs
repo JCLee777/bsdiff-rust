@@ -1,46 +1,44 @@
 use std::fs::File;
 use std::io::Read;
 
-/// 补丁文件信息
+/// Patch file information.
 #[derive(Debug, Clone)]
 pub struct PatchInfo {
     pub size: u64,
     pub compressed: bool,
 }
 
-/// 压缩比信息
+/// Compression ratio information.
 #[derive(Debug, Clone)]
 pub struct CompressionRatio {
     pub old_size: u64,
     pub new_size: u64,
     pub patch_size: u64,
-    pub ratio: f64, // 百分比
+    pub ratio: f64, // percentage
 }
 
-/// 验证补丁文件完整性
+/// Verify patch file integrity.
 pub fn verify_patch(old_file: &str, new_file: &str, patch_file: &str) -> Result<bool, Box<dyn std::error::Error>> {
-    // 读取文件
     let new_data = std::fs::read(new_file)?;
     
-    // 创建临时文件来应用补丁
+    // Create a temporary file to apply the patch
     let temp_file = tempfile::NamedTempFile::new()?;
     let temp_path = temp_file.path().to_str().ok_or("Invalid temp path")?;
     
-    // 使用 BsdiffRust::patch 应用补丁
+    // Apply the patch using BsdiffRust::patch
     crate::bsdiff_rust::BsdiffRust::patch(old_file, temp_path, patch_file)?;
     
-    // 读取生成的数据
+    // Read the generated data and compare
     let patched_data = std::fs::read(temp_path)?;
     
-    // 比较结果
     Ok(patched_data == new_data)
 }
 
-/// 获取补丁文件信息
+/// Get patch file information.
 pub fn get_patch_info(patch_file: &str) -> Result<PatchInfo, Box<dyn std::error::Error>> {
     let metadata = std::fs::metadata(patch_file)?;
     
-    // 检查是否是 BSDIFF40 格式
+    // Check if the file is in BSDIFF40 format
     let mut file = File::open(patch_file)?;
     let mut header = [0u8; 8];
     file.read_exact(&mut header).ok();
@@ -48,17 +46,17 @@ pub fn get_patch_info(patch_file: &str) -> Result<PatchInfo, Box<dyn std::error:
     
     Ok(PatchInfo {
         size: metadata.len(),
-        compressed: is_bsdiff40, // BSDIFF40 格式使用 bzip2 压缩
+        compressed: is_bsdiff40, // BSDIFF40 format uses bzip2 compression
     })
 }
 
-/// 计算文件大小（用于进度显示）
+/// Get file size in bytes.
 pub fn get_file_size(file_path: &str) -> Result<u64, Box<dyn std::error::Error>> {
     let metadata = std::fs::metadata(file_path)?;
     Ok(metadata.len())
 }
 
-/// 检查文件是否存在且可读
+/// Check whether a file exists and is readable.
 pub fn check_file_access(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let path = std::path::Path::new(file_path);
     if !path.exists() {
@@ -67,12 +65,12 @@ pub fn check_file_access(file_path: &str) -> Result<(), Box<dyn std::error::Erro
     if !path.is_file() {
         return Err(format!("Path is not a file: {}", file_path).into());
     }
-    // 尝试打开文件以验证可读性
+    // Try opening the file to verify readability
     File::open(file_path)?;
     Ok(())
 }
 
-/// 获取压缩比信息
+/// Get compression ratio information.
 pub fn get_compression_ratio(old_file: &str, new_file: &str, patch_file: &str) -> Result<CompressionRatio, Box<dyn std::error::Error>> {
     let old_size = get_file_size(old_file)?;
     let new_size = get_file_size(new_file)?;
